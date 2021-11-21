@@ -3,12 +3,15 @@ package List0
 import scala.collection.mutable.{ListBuffer, Map}
 import scala.io.Source
 import java.io.{File, FileNotFoundException, PrintWriter}
+import scala.math._
+import util.control.Breaks._
 
 class Text(){
   private var wordCounter: Map[String, Int] = Map()
   private var allWordCounter: Map[String, Int] = Map()
   private var allDocsTFIDF: Map[String, Map[String, Double]] = Map()
-  private var allWordTFIDF: Map[String, Double] = Map()
+  private var oneDocsTFIDF: Map[String, Double] = Map()
+  private var wordsInDocs: Map[String, Int] = Map()
   var sortedWords = Map[String, Int]().toSeq
   var sortedAllWords = Map[String, Int]().toSeq
   val stopwords = List("ourselves", "hers", "between", "yourself", "but", "again", "there", "about", "once", "during", "out", "very", "having", "with", "they", "own", "an", "be", "some", "for", "do", "its", "yours", "such", "into", "of", "most", "itself", "other", "off", "is", "s", "am", "or", "who", "as", "from", "him", "each", "the", "themselves", "until", "below", "are", "we", "these", "your", "his", "through", "don", "nor", "me", "were", "her", "more", "himself", "this", "down", "should", "our", "their", "while", "above", "both", "up", "to", "ours", "had", "she", "all", "no", "when", "at", "any", "before", "them", "same", "and", "been", "have", "in", "will", "on", "does", "yourselves", "then", "that", "because", "what", "over", "why", "so", "can", "did", "not", "now", "under", "he", "you", "herself", "has", "just", "where", "too", "only", "myself", "which", "those", "i", "after", "few", "whom", "t", "being", "if", "theirs", "my", "against", "a", "by", "doing", "it", "how", "further", "was", "here", "than")
@@ -50,22 +53,79 @@ class Text(){
 
   def WordCloudAll(n:Int): Unit = {
     sortedAllWords = allWordCounter.toSeq.sortWith(_._2 > _._2)
+    println("All words:")
     for (s <- sortedAllWords.take(n)){
-      println("All words:")
       if(s._1!=""){
         println(s._2 + ", " + s._1)
       }
     }
   }
 
-  def TFIDFmap(name:String): Unit = {
-    if (allWordTFIDF.contain(name)==False){
-
+  def TFIDFAddDoc (input:String, n:Int): Unit = {
+    var i = input.lastIndexOf("/")
+    val DocumentId = input.substring(i + 1);
+    if (allDocsTFIDF.contains(DocumentId)){
+      println("This document was already loaded")
+    }
+    else{
+      CountWords(input)
+      for (s <- wordCounter){
+        if (oneDocsTFIDF.contains(s._1)){
+          oneDocsTFIDF(s._1) += 1
+        }
+        else{
+          breakable{
+            if (wordsInDocs.contains(s._1)){
+              break
+            }
+            else {
+              wordsInDocs += (s._1 -> 1)
+            }
+          }
+          oneDocsTFIDF += (s._1 -> TFIDF(s._1))
+        }  
+      }
+      allDocsTFIDF += (DocumentId -> oneDocsTFIDF)
+    }
+    println("TFIDF:")
+    for (w <- oneDocsTFIDF.take(n)){
+      if(w._1!=""){
+        println(w._1 + ", " + w._2)
+      }
     }
   }
 
-  def TFIDF(): Unit = {
-    
+
+
+/*
+  def TFIDFUpdate (): Unit = {
+
+  }
+*/
+
+  def TF(/*wordCounter:Map[String, Int],*/ word:String): Double = {
+      var allWords = 0
+      for (w <- wordCounter) {
+        allWords += w._2
+      }
+      return wordCounter(word)/allWords
+  }
+
+  def IDF (/*allDocsTFIDF: Map[String, Map[String, Double]],*/ word:String): Double = {
+//    if (wordsInDocs.contains(word)){
+      var D = 0
+      for (d <- allDocsTFIDF){
+        D += 1
+      }
+      return log10(D/wordsInDocs(word))
+//    }
+//    else {
+//      return 0
+//    }
+  }
+
+  def TFIDF(word:String): Double = {
+    return TF(word) * IDF(word)
   }
 
   def SaveWords(path:String, title:String): Unit = {
@@ -107,7 +167,7 @@ object Book {
         }
         else{
           var n = io.StdIn.readLine("Number of most frequently words to show: ")
-          text.CountWords(input)
+          text.TFIDFAddDoc(input, n.toInt)
           text.WordCloud(n.toInt)
           text.WordCloudAll(n.toInt)
           text.SaveWords(filePath, fileTitle)
